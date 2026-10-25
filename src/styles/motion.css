@@ -1,0 +1,304 @@
+:root {
+  --ease-spring: cubic-bezier(0.22, 1.25, 0.36, 1);
+  --ease-flow: cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sidebar-bottom {
+  padding-bottom: 24px;
+}
+.page-view {
+  min-width: 0;
+  transform-origin: 50% 8%;
+}
+.page-enter-active {
+  transition:
+    opacity 0.42s var(--ease-flow),
+    transform 0.48s var(--ease-flow),
+    filter 0.42s var(--ease-flow);
+}
+.page-leave-active {
+  transition:
+    opacity 0.14s ease,
+    transform 0.18s ease,
+    filter 0.14s ease;
+  pointer-events: none;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(16px);
+  filter: blur(3px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-7px);
+  filter: blur(2px);
+}
+.hero-copy > * {
+  animation: hero-unfold 0.8s var(--ease-flow) both;
+}
+.hero-copy > :nth-child(2) {
+  animation-delay: 0.07s;
+}
+.hero-copy > :nth-child(3) {
+  animation-delay: 0.14s;
+}
+.hero-copy > :nth-child(4) {
+  animation-delay: 0.21s;
+}
+.hero-copy > :nth-child(5) {
+  animation-delay: 0.28s;
+}
+@keyframes hero-unfold {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+.component-grid {
+  position: relative;
+}
+.component-card {
+  animation: none;
+  transform-origin: 50% 30%;
+}
+.collection-move {
+  transition: transform 0.58s var(--ease-flow);
+}
+.collection-enter-active {
+  transition:
+    opacity 0.4s var(--ease-flow),
+    transform 0.55s var(--ease-spring),
+    filter 0.4s;
+  transition-delay: calc(var(--card-index, 0) * 30ms);
+}
+.collection-leave-active {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.18s ease,
+    transform 0.22s ease,
+    filter 0.18s ease;
+}
+.collection-enter-from {
+  opacity: 0;
+  transform: translateY(22px) scale(0.97);
+  filter: blur(3px);
+}
+.collection-leave-to {
+  opacity: 0;
+  transform: translateY(5px) scale(0.96);
+  filter: blur(3px);
+}
+.card-stage {
+  transition:
+    transform 0.6s var(--ease-flow),
+    border-color 0.3s,
+    box-shadow 0.4s,
+    opacity 0.55s var(--ease-flow);
+  will-change: auto;
+}
+.card-stage:hover {
+  box-shadow: 0 12px 28px -16px #6c52ac35;
+}
+.component-card[data-revealed="false"] .card-stage {
+  opacity: 0;
+  transform: translateY(14px);
+}
+.card-description {
+  transition:
+    opacity 0.6s var(--ease-flow),
+    transform 0.6s var(--ease-flow);
+  transition-delay: 60ms;
+}
+.component-card[data-revealed="false"] .card-description {
+  opacity: 0;
+  transform: translateY(12px);
+}
+.component-card[data-revealed="true"] .card-stage {
+  transition-delay: calc(var(--card-index, 0) * 35ms);
+}
+.component-card[data-revealed="true"] .card-description {
+  transition-delay: calc(var(--card-index, 0) * 35ms + 50ms);
+}
+.reveal-block {
+  transition:
+    opacity 0.65s var(--ease-flow),
+    transform 0.7s var(--ease-flow);
+}
+.reveal-block[data-revealed="false"] {
+  opacity: 0;
+  transform: translateY(20px);
+}
+.sidebar-scroll {
+  position: relative;
+  isolation: isolate;
+}
+.sidebar-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--accent-soft);
+  border-radius: 6px;
+  z-index: -1;
+  pointer-events: none;
+  transition:
+    transform 0.42s var(--ease-spring),
+    width 0.35s var(--ease-flow),
+    height 0.35s var(--ease-flow),
+    opacity 0.2s;
+}
+.sidebar-link.selected {
+  background: transparent;
+}
+.sidebar-link {
+  transition:
+    color 0.2s,
+    background 0.2s;
+}
+.category-tabs {
+  position: relative;
+  isolation: isolate;
+}
+.tab-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  background: var(--accent-soft);
+  border-radius: 5px;
+  pointer-events: none;
+  transition:
+    transform 0.42s var(--ease-spring),
+    width 0.38s var(--ease-spring),
+    height 0.35s,
+    opacity 0.2s;
+}
+.category-tabs button.active {
+  background: transparent;
+}
+.category-tabs button {
+  transition:
+    color 0.25s,
+    background 0.25s;
+}
+.button,
+.icon-button {
+  transition:
+    box-shadow 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+.button.primary:hover {
+  box-shadow: 0 3px 12px #7b61ff20;
+}
+.preview-enter-active {
+  transition:
+    opacity 0.35s var(--ease-flow),
+    transform 0.4s var(--ease-spring),
+    filter 0.3s;
+}
+.preview-leave-active {
+  transition:
+    opacity 0.13s,
+    transform 0.16s;
+  pointer-events: none;
+}
+.preview-enter-from {
+  opacity: 0;
+  transform: translateY(7px) scale(0.985);
+  filter: blur(2px);
+}
+.preview-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+.search-enter-active,
+.search-leave-active {
+  transition:
+    opacity 0.24s ease,
+    backdrop-filter 0.3s;
+}
+.search-enter-active .search-dialog {
+  transition:
+    transform 0.5s var(--ease-spring),
+    opacity 0.3s,
+    filter 0.35s;
+}
+.search-leave-active .search-dialog {
+  transition:
+    transform 0.2s ease,
+    opacity 0.18s,
+    filter 0.18s;
+}
+.search-enter-from .search-dialog {
+  transform: translateY(-18px) scale(0.96);
+  filter: blur(4px);
+  opacity: 0;
+}
+.search-leave-to .search-dialog {
+  transform: translateY(-6px) scale(0.98);
+  filter: blur(2px);
+  opacity: 0;
+}
+.search-result {
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.toast-enter-active {
+  transition:
+    opacity 0.3s,
+    transform 0.45s var(--ease-spring);
+}
+.toast-leave-active {
+  transition:
+    opacity 0.2s,
+    transform 0.25s ease;
+}
+.toast-enter-from {
+  opacity: 0;
+  transform: translate(-50%, 18px) scale(0.94);
+}
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 8px) scale(0.97);
+}
+@media (hover: none) {
+  .card-stage:hover {
+    box-shadow: none;
+  }
+  .card-stage {
+    transform: none !important;
+  }
+  .button:hover {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-view,
+  .card-stage,
+  .card-description,
+  .reveal-block,
+  .hero-copy > *,
+  .button,
+  .search-dialog {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    filter: none !important;
+  }
+  .component-card[data-revealed="false"] .card-stage,
+  .component-card[data-revealed="false"] .card-description,
+  .reveal-block[data-revealed="false"] {
+    opacity: 1;
+  }
+  .sidebar-highlight,
+  .tab-highlight {
+    transition: none !important;
+  }
+}

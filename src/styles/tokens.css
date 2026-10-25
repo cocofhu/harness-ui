@@ -1,0 +1,49 @@
+/* Agent UI semantic tokens. Optional: import into your Vue project. */
+:root {
+  color-scheme: light;
+  --accent: #7b61ff;
+  --accent-hover: #684ce9;
+  --accent-soft: #f0edff;
+  --bg: #fff;
+  --canvas: #fafafb;
+  --surface: #fff;
+  --text: #252529;
+  --muted: #6f6f79;
+  --text-secondary: #62626c;
+  --border: #eae9ee;
+  --border-strong: #dcdbe3;
+  --demo-bg: #f8f8fa;
+  --demo-surface: #fff;
+  --demo-text: #252529;
+  --demo-muted: #6b6b76;
+  --demo-border: #e8e8ed;
+  --dot-color: #dfdde7;
+  --shadow: 0 5px 18px #25252906;
+  --stage-lilac: #f5f3fa;
+  --stage-sand: #faf7f2;
+  --stage-gray: #f5f6f7;
+}
+html.dark {
+  color-scheme: dark;
+  --accent: #a08aff;
+  --accent-hover: #b2a0ff;
+  --accent-soft: #242033;
+  --bg: #0a0a0b;
+  --canvas: #111114;
+  --surface: #141417;
+  --text: #ededf0;
+  --muted: #a1a1ac;
+  --text-secondary: #b1b1ba;
+  --border: #26262b;
+  --border-strong: #393940;
+  --demo-bg: #141417;
+  --demo-surface: #1c1c21;
+  --demo-text: #ededf0;
+  --demo-muted: #b0b0bc;
+  --demo-border: #33333c;
+  --dot-color: #35333e;
+  --shadow: 0 5px 18px #0002;
+  --stage-lilac: #18161e;
+  --stage-sand: #1b1916;
+  --stage-gray: #16181b;
+}

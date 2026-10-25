@@ -1,0 +1,56 @@
+.hover-ink {
+  position: absolute;
+  pointer-events: none;
+}
+.hover-ink-host {
+  position: relative;
+  /*
+   * overflow:clip: keep ink painted inside the host radius without creating a
+   * scroll container (the previous overflow hidden value shifted scroll origin).
+   * Centering uses transform — NOT negative margin — so the ink layout box
+   * never extends left of the landing point (sticky shift after click/leave).
+   */
+  overflow: clip;
+  isolation: isolate;
+}
+.hover-ink-host > .hover-ink {
+  position: absolute;
+  left: var(--ink-x, 50%);
+  top: var(--ink-y, 50%);
+  width: var(--ink-d, 0px);
+  height: var(--ink-d, 0px);
+  /* plan g1.1: no negative-margin layout box; center with translate only */
+  margin: 0;
+  border-radius: 50%;
+  background: var(--hover-ink-color, var(--source-elevated, #f4f4f5));
+  transform: translate(-50%, -50%) scale(0);
+  transform-origin: center;
+  transition: transform 350ms cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  /* Below bare text nodes too (review v1 / plan g1.2): element children get
+     z-index:1, but AppButton default slot is often raw text and would sit under
+     a z-index:0 positioned ink layer. Host isolation keeps -1 above the bg. */
+  z-index: -1;
+}
+.hover-ink-host.is-hover-ink > .hover-ink {
+  transform: translate(-50%, -50%) scale(1);
+}
+.hover-ink-host.is-leave-ink > .hover-ink {
+  transform: translate(-50%, -50%) scale(0);
+}
+/* Disabled / loading: hide any cover that was already open. No fade through the elevated fallback. */
+.hover-ink-host.is-ink-suppressed > .hover-ink {
+  visibility: hidden;
+  transition: none;
+  transform: translate(-50%, -50%) scale(0);
+}
+/* Content / icons / badges stay above the ink layer (plan g1.2). */
+.hover-ink-host > :not(.hover-ink) {
+  position: relative;
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hover-ink-host > .hover-ink {
+    transition: none;
+  }
+}
