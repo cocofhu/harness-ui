@@ -8,6 +8,7 @@ import ActivityTimeline from "../components/ui/ActivityTimeline.vue";
 import ClarificationCard from "../components/ui/ClarificationCard.vue";
 import SlidingTabs from "../components/ui/SlidingTabs.vue";
 import GroupedTaskList from "../components/ui/GroupedTaskList.vue";
+import Selector from "../components/ui/Selector.vue";
 
 const sources = import.meta.glob("../components/ui/*.vue", {
   query: "?raw",
@@ -121,6 +122,15 @@ const entries: Entry[] = [
     true,
   ],
   [
+    "selector",
+    "Selector",
+    "Selector",
+    "Search and choose from a dropdown",
+    "navigation",
+    Selector,
+    "Selector",
+  ],
+  [
     "grouped-task-list",
     "Grouped Task List",
     "Grouped Task List",
@@ -172,6 +182,7 @@ const searchAliases: Record<string, string> = {
   "activity-timeline": "activity timeline fold expand collapse tools",
   "clarification-card": "question answer clarification choices form",
   "sliding-tabs": "tab tabs switch segmented control",
+  "selector": "select selector dropdown options picker form searchable",
   "grouped-task-list": "list group tasks navigation sidebar fold collapse hover new task",
 };
 

@@ -63,9 +63,34 @@ Components handle interface interactions. Your application supplies message requ
 | ActivityTimeline | Expandable environment, thinking, and tool details |
 | ClarificationCard | Question choices, submission, and answer summary |
 | SlidingTabs | Keyboard navigation and a sliding selection indicator |
+| Selector | Searchable dropdown, hints, custom values, and keyboard selection |
 | GroupedTaskList | Task groups, collapsible history, selection, and a new-task hover overlay |
 
 The icon gallery contains 141 SVG icons, including 140 with individual animations. Hover or focus a glyph to preview its motion, or copy its SVG or standalone Vue source. Animations respect reduced-motion preferences.
+
+### Selector
+
+Copy [`Selector.vue`](./src/components/ui/Selector.vue) to your project. It supports `v-model`, search, option hints, disabled options, custom values, and both `outline` and `ghost` variants. Its menu stays within the viewport and escapes clipped containers.
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue';
+import Selector from './components/ui/Selector.vue';
+
+const status = ref('in-progress');
+const options = [
+  { value: 'backlog', label: 'Backlog' },
+  { value: 'in-progress', label: 'In progress', hint: 'Active' },
+  { value: 'done', label: 'Done' },
+];
+</script>
+
+<template>
+  <Selector v-model="status" :options="options" searchable aria-label="Task status" />
+</template>
+```
+
+Use `allow-custom` with `searchable` to accept typed values; use `disabled`, `invalid`, `loading`, and `empty-text` for form states. The optional `leading` and `option-leading` slots provide custom icons. Each option has a string `value`, a `label`, and optional `hint` and `disabled` fields.
 
 ## GitHub Pages
 

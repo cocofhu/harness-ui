@@ -11,6 +11,7 @@ const components = [
   ["activity-timeline", "Activity Timeline"],
   ["clarification-card", "Clarification Card"],
   ["sliding-tabs", "Sliding Tabs"],
+  ["selector", "Selector"],
   ["grouped-task-list", "Grouped Task List"],
 ] as const;
 
@@ -281,7 +282,7 @@ test("390px mobile collection, navigation, search and source detail avoid horizo
     .getByRole("button", { name: /Navigation/ })
     .click();
   await expect(menu).toHaveAttribute("aria-expanded", "false");
-  await expect(page.locator(".component-card")).toHaveCount(2);
+  await expect(page.locator(".component-card")).toHaveCount(3);
   await expectNoHorizontalOverflow(page);
   await page
     .getByRole("button", { name: "View Sliding Tabs details", exact: true })
