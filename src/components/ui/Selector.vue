@@ -44,6 +44,7 @@ const root = ref<HTMLElement>();
 const trigger = ref<HTMLButtonElement>();
 const panel = ref<HTMLElement>();
 const list = ref<HTMLElement>();
+const optionsContainer = ref<HTMLElement>();
 const searchInput = ref<HTMLInputElement>();
 const open = ref(false);
 const search = ref("");
@@ -55,6 +56,11 @@ const isPlaceholder = computed(() => !matched.value && !(props.allowCustom && cu
 const selectedLabel = computed(() => matched.value?.label ?? (props.allowCustom && currentValue.value ? currentValue.value : props.placeholder));
 const panelStyle = ref<Record<string, string>>({ visibility: "hidden" });
 const activeIndex = ref(-1);
+const highlightStyle = ref<Record<string, string>>({ opacity: "0" });
+let placement: "above" | "below" | undefined;
+let motionGeneration = 0;
+let panelMotion: { animation: Animation; element: HTMLElement; opening: boolean } | undefined;
+let motionPreference: MediaQueryList | undefined;
 let panelPositioned = false;
 let positionFrame = 0;
 let scrollTimer: ReturnType<typeof setTimeout> | undefined;
@@ -102,7 +108,7 @@ function anchorVisible(element: HTMLElement, rect: DOMRect) {
   return left < right && top < bottom;
 }
 
-function placePanel() {
+function placePanel(animateSize = false) {
   if (!open.value || !trigger.value || !panel.value) return;
   const rect = trigger.value.getBoundingClientRect();
   if (!anchorVisible(trigger.value, rect)) { closePanel(); return; }
@@ -111,26 +117,39 @@ function placePanel() {
   const viewportLeft = viewport?.offsetLeft || 0, viewportTop = viewport?.offsetTop || 0;
   const viewportWidth = viewport?.width || innerWidth, viewportHeight = viewport?.height || innerHeight;
   const headerHeight = panel.value.querySelector<HTMLElement>(".selector-search-bar")?.offsetHeight || 0;
-  const naturalHeight = Math.min(limit, headerHeight + (list.value?.scrollHeight || 0) + 2);
+  const naturalHeight = Math.min(limit, headerHeight + (optionsContainer.value?.offsetHeight || 0) + 10);
   const below = Math.max(0, viewportTop + viewportHeight - rect.bottom - gap - margin);
   const above = Math.max(0, rect.top - viewportTop - gap - margin);
-  const flip = below < naturalHeight && above > below;
+  // Filtering keeps the current side, so the search field never changes sides.
+  const flip = placement && animateSize ? placement === "above" : below < naturalHeight && above > below;
+  placement = flip ? "above" : "below";
   const maxHeight = Math.min(limit, flip ? above : below);
   const height = Math.min(naturalHeight, maxHeight);
   const width = Math.min(props.variant === "ghost" ? Math.max(168, rect.width) : rect.width, Math.max(0, viewportWidth - margin * 2));
   const left = Math.max(viewportLeft + margin, Math.min(rect.left, viewportLeft + viewportWidth - width - margin));
   const top = Math.max(viewportTop + margin, Math.min(flip ? rect.top - gap - height : rect.bottom + gap, viewportTop + viewportHeight - height - margin));
-  panelStyle.value = { position: "fixed", top: `${Math.round(top)}px`, left: `${Math.round(left)}px`, width: `${Math.round(width)}px`, maxHeight: `${Math.floor(maxHeight)}px`, visibility: "visible", zIndex: "60" };
+  panelStyle.value = { "--selector-size-duration": animateSize && panelPositioned ? "200ms" : "0ms", "--selector-offset": flip ? "5px" : "-5px", "--selector-origin": flip ? "bottom" : "top", position: "fixed", top: `${Math.round(top)}px`, left: `${Math.round(left)}px`, width: `${Math.round(width)}px`, height: `${Math.round(height)}px`, maxHeight: `${Math.floor(maxHeight)}px`, visibility: "visible", zIndex: "60" };
 }
 
-function revealActiveOption() {
+function measureHighlight(animate = true) {
+  if (!open.value || !panelPositioned) return;
+  const option = document.getElementById(optionId(activeIndex.value));
+  if (!option || !optionsContainer.value?.contains(option)) { highlightStyle.value = { opacity: "0" }; return; }
+  highlightStyle.value = {
+    transform: `translateY(${option.offsetTop}px)`, height: `${option.offsetHeight}px`, opacity: "1",
+    "--selector-highlight-duration": animate ? "190ms" : "0ms",
+  };
+}
+function revealActiveOption(animate = false) {
   if (!open.value || !panelPositioned || !list.value) return;
   const option = document.getElementById(optionId(activeIndex.value));
   if (!option) return;
   // Scroll only the list. scrollIntoView could also move the page or a dialog.
   const optionRect = option.getBoundingClientRect(), listRect = list.value.getBoundingClientRect();
-  if (optionRect.top < listRect.top + 4) list.value.scrollTop -= listRect.top + 4 - optionRect.top;
-  else if (optionRect.bottom > listRect.bottom - 4) list.value.scrollTop += optionRect.bottom - listRect.bottom + 4;
+  let delta = 0;
+  if (optionRect.top < listRect.top + 4) delta = optionRect.top - listRect.top - 4;
+  else if (optionRect.bottom > listRect.bottom - 4) delta = optionRect.bottom - listRect.bottom + 4;
+  if (delta) list.value.scrollTo({ top: list.value.scrollTop + delta, behavior: animate && !motionPreference?.matches && Math.abs(delta) < list.value.clientHeight ? "smooth" : "instant" });
 }
 function onListScroll() {
   scrolling.value = true;
@@ -146,39 +165,87 @@ async function openPanel(edge?: "first" | "last") {
   if (props.disabled || disposed) return;
   if (closeOpenSelector !== closePanel) closeOpenSelector?.();
   closeOpenSelector = closePanel;
-  panelPositioned = false;
-  panelStyle.value = { position: "fixed", visibility: "hidden" };
+  const reversing = Boolean(panelMotion && !panelMotion.opening);
+  panelPositioned = reversing;
+  if (!reversing) {
+    placement = undefined;
+    panelStyle.value = { position: "fixed", visibility: "hidden" };
+  }
   search.value = "";
   open.value = true;
   const selectedIndex = rows.value.findIndex(row => row.value === currentValue.value && !row.disabled);
   activeIndex.value = edge === "last" ? enabledIndices.value.at(-1) ?? -1 : edge === "first" ? enabledIndices.value[0] ?? -1 : selectedIndex >= 0 ? selectedIndex : enabledIndices.value[0] ?? -1;
   await nextTick();
   if (!open.value || disposed) return;
-  placePanel();
+  placePanel(reversing);
   await nextTick();
   if (!open.value || disposed) return;
   panelPositioned = true;
   revealActiveOption();
   searchInput.value?.focus({ preventScroll: true });
-  observer?.observe(panel.value!);
-  schedulePosition();
+  measureHighlight(false);
+  if (optionsContainer.value) observer?.observe(optionsContainer.value);
 }
 function closePanel(restoreFocus = false) {
   if (closeOpenSelector === closePanel) closeOpenSelector = undefined;
   cancelAnimationFrame(positionFrame);
   positionFrame = 0;
-  if (panel.value) observer?.unobserve(panel.value);
+  if (optionsContainer.value) observer?.unobserve(optionsContainer.value);
   open.value = false;
   panelPositioned = false;
   clearTimeout(scrollTimer);
   scrolling.value = false;
-  search.value = "";
+  // Keep the rendered results intact until the exit has actually finished.
   if (restoreFocus && !disposed) trigger.value?.focus({ preventScroll: true });
 }
-function hideLeavingPanel(element: Element) {
+function freezePanel(element: Element) {
+  motionGeneration++;
+  if (!panelMotion || panelMotion.element !== element) return;
+  const style = getComputedStyle(element);
+  const opacity = style.opacity, transform = style.transform;
+  panelMotion.animation.cancel();
+  (element as HTMLElement).style.opacity = opacity;
+  (element as HTMLElement).style.transform = transform;
+  panelMotion = undefined;
+}
+function animatePanel(element: HTMLElement, opening: boolean, done: () => void) {
+  const style = getComputedStyle(element);
+  const opacity = Number.parseFloat(style.opacity);
+  const target = { opacity: opening ? "1" : "0", transform: opening ? "translateY(0)" : `translateY(${placement === "above" ? 5 : -5}px)` };
+  if (motionPreference?.matches || document.hidden) { Object.assign(element.style, target); done(); return; }
+  const animation = element.animate([{ opacity: style.opacity, transform: style.transform }, target], {
+    duration: Math.max(65, (opening ? 220 : 130) * Math.abs((opening ? 1 : 0) - opacity)),
+    easing: opening ? "cubic-bezier(.16,1,.3,1)" : "cubic-bezier(.4,0,1,1)", fill: "both",
+  });
+  panelMotion = { animation, element, opening };
+  void animation.finished.then(() => {
+    if (panelMotion?.animation !== animation) return;
+    Object.assign(element.style, target);
+    panelMotion = undefined;
+    animation.cancel();
+    done();
+  }, () => {});
+}
+async function enterPanel(element: Element, done: () => void) {
+  freezePanel(element);
+  const generation = motionGeneration;
+  await nextTick();
+  await nextTick();
+  if (!open.value || disposed || generation !== motionGeneration) return;
+  animatePanel(element as HTMLElement, true, done);
+}
+function leavePanel(element: Element, done: () => void) {
+  freezePanel(element);
   element.setAttribute("aria-hidden", "true");
   (element as HTMLElement).inert = true;
+  animatePanel(element as HTMLElement, false, done);
 }
+function afterPanelLeave() {
+  if (open.value) return;
+  search.value = "";
+  placement = undefined;
+}
+function onMotionChange() { if (motionPreference?.matches) panelMotion?.animation.finish(); }
 function choose(index: number) {
   const row = rows.value[index];
   if (!open.value || props.disabled || !row || row.disabled) return;
@@ -237,13 +304,19 @@ watch([rows, search], ([next, query], [previous, previousQuery]) => {
   const previousValue = previous?.[activeIndex.value]?.value;
   const index = query === previousQuery ? next.findIndex(row => row.value === previousValue && !row.disabled) : -1;
   activeIndex.value = index >= 0 ? index : enabledIndices.value[0] ?? -1;
-  if (open.value) void nextTick(() => { placePanel(); revealActiveOption(); });
+  if (open.value) void nextTick(() => { placePanel(true); revealActiveOption(); measureHighlight(false); });
 });
-watch(activeIndex, () => { if (open.value) void nextTick(revealActiveOption); });
+watch(activeIndex, () => { if (open.value) void nextTick(() => { revealActiveOption(true); measureHighlight(); }); });
 watch(() => props.disabled, disabled => { if (disabled) closePanel(); }, { flush: "sync" });
 watch(() => props.searchable, () => closePanel());
 onMounted(() => {
-  observer = new ResizeObserver(() => schedulePosition());
+  motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+  motionPreference.addEventListener("change", onMotionChange);
+  observer = new ResizeObserver(entries => {
+    if (!open.value) return;
+    if (entries.some(entry => entry.target === root.value)) schedulePosition();
+    else { placePanel(true); measureHighlight(false); }
+  });
   if (root.value) observer.observe(root.value);
   document.addEventListener("pointerdown", onOutsidePointer, true);
   document.addEventListener("keydown", onDocumentKeydown, true);
@@ -257,6 +330,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   disposed = true;
   closePanel();
+  if (panel.value) freezePanel(panel.value);
+  motionPreference?.removeEventListener("change", onMotionChange);
   observer?.disconnect();
   document.removeEventListener("pointerdown", onOutsidePointer, true);
   document.removeEventListener("keydown", onDocumentKeydown, true);
@@ -277,13 +352,15 @@ onBeforeUnmount(() => {
       <ChevronDown class="selector-chevron" :size="14" aria-hidden="true" />
     </button>
     <Teleport to="body">
-      <Transition name="selector-pop" @before-leave="hideLeavingPanel">
-        <div v-if="open" ref="panel" class="selector-panel" :class="[`selector-panel--${size}`, `selector-panel--${variant}`]" :style="panelStyle" @click.stop>
+      <Transition :css="false" @enter="enterPanel" @leave="leavePanel" @enter-cancelled="freezePanel" @leave-cancelled="freezePanel" @after-leave="afterPanelLeave">
+        <div v-show="open" ref="panel" class="selector-panel" :inert="!open || undefined" :aria-hidden="!open || undefined" :class="[`selector-panel--${size}`, `selector-panel--${variant}`]" :style="panelStyle" @click.stop>
           <div v-if="searchable" class="selector-search-bar">
             <Search :size="14" aria-hidden="true" />
             <input ref="searchInput" v-model="search" class="selector-search" type="search" role="combobox" aria-autocomplete="list" :aria-expanded="open" :aria-controls="listboxId" :aria-activedescendant="activeDescendant" :aria-label="searchPlaceholder" :placeholder="searchPlaceholder" autocomplete="off" />
           </div>
           <div :id="listboxId" ref="list" class="selector-list" :data-scrolling="scrolling || undefined" @scroll.passive="onListScroll" role="listbox" :aria-label="ariaLabel" :aria-busy="loading || undefined">
+            <div ref="optionsContainer" class="selector-options">
+            <span class="selector-highlight" :style="highlightStyle" aria-hidden="true" />
             <button v-for="(row, index) in rows" :id="optionId(index)" :key="`${row.custom ? 'custom' : 'option'}:${row.value}`" class="selector-option" :class="{ 'is-active': index === activeIndex, 'is-selected': row.value === currentValue }" type="button" role="option" tabindex="-1" :disabled="row.disabled" :aria-selected="row.value === currentValue" @pointermove="!row.disabled && (activeIndex = index)" @pointerdown.prevent @click.stop="choose(index)">
               <slot name="option-leading" :option="row" />
               <span v-if="row.custom" class="selector-option-label">Use “{{ row.value }}”</span>
@@ -292,6 +369,7 @@ onBeforeUnmount(() => {
               <Check class="selector-check" :class="{ 'is-visible': row.value === currentValue }" :size="14" aria-hidden="true" />
             </button>
             <p v-if="!rows.length" class="selector-empty" role="status">{{ loading ? 'Loading options…' : emptyText }}</p>
+            </div>
           </div>
         </div>
       </Transition>
@@ -322,7 +400,7 @@ onBeforeUnmount(() => {
 .selector-trigger:disabled { opacity: .5; cursor: default; }
 .selector-value { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .selector-value.is-placeholder, .selector-chevron { color: var(--selector-muted); }
-.selector-chevron { flex: 0 0 auto; transition: transform 160ms cubic-bezier(.22,1,.36,1); }
+.selector-chevron { flex: 0 0 auto; transition: transform 220ms cubic-bezier(.16,1,.3,1); }
 .is-open .selector-chevron { transform: rotate(180deg); }
 .selector--sm { font-size: 12px; }
 .selector--sm .selector-trigger { min-height: 32px; padding: 5px 10px; }
@@ -331,7 +409,7 @@ onBeforeUnmount(() => {
 .selector--ghost.is-open .selector-trigger { border-color: color-mix(in srgb, var(--selector-accent) 35%, transparent); background: color-mix(in srgb, var(--selector-accent) 4%, var(--selector-bg)); }
 .selector--ghost.selector--sm .selector-trigger { min-height: 30px; padding-block: 4px; }
 .selector.is-invalid .selector-trigger, .selector.is-invalid .selector-trigger:hover, .selector.is-invalid.is-open .selector-trigger { border-color: #c17a72; }
-.selector-panel { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--selector-border); border-radius: 8px; background: var(--selector-bg); box-shadow: 0 8px 28px #00000012, 0 2px 8px #00000006; text-align: left; }
+.selector-panel { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--selector-border); border-radius: 8px; background: var(--selector-bg); box-shadow: 0 8px 28px #00000012, 0 2px 8px #00000006; text-align: left; opacity: 0; transform: translateY(var(--selector-offset, -5px)); transform-origin: center var(--selector-origin, top); transition: height var(--selector-size-duration, 0ms) cubic-bezier(.16,1,.3,1), top var(--selector-size-duration, 0ms) cubic-bezier(.16,1,.3,1); }
 .selector-panel--ghost { box-shadow: 0 6px 20px #0000001a; }
 .selector-panel--sm { font-size: 12px; }
 .selector-search-bar { display: flex; align-items: center; flex: 0 0 auto; gap: 7px; min-width: 0; padding: 8px 10px; border-bottom: 1px solid var(--selector-border); color: var(--selector-muted); }
@@ -340,9 +418,11 @@ onBeforeUnmount(() => {
 .selector-search::placeholder { color: var(--selector-muted); }
 .selector-search::-webkit-search-cancel-button { appearance: none; }
 .selector-list { min-height: 0; overflow-y: auto; padding: 4px; scrollbar-width: thin; scrollbar-color: transparent transparent; overscroll-behavior: contain; }
-.selector-option { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 36px; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--selector-muted); font: inherit; line-height: 20px; text-align: left; cursor: pointer; transition: background-color 120ms, color 120ms; }
-.selector-option:hover:not(:disabled) { background: var(--selector-hover); color: var(--selector-fg); }
-.selector-option.is-active:not(:disabled) { background: var(--selector-active); color: var(--selector-fg); }
+.selector-options { position: relative; min-width: 0; isolation: isolate; }
+.selector-highlight { position: absolute; z-index: -1; top: 0; left: 0; width: 100%; border-radius: 6px; background: var(--selector-active); pointer-events: none; transition: transform var(--selector-highlight-duration, 0ms) cubic-bezier(.16,1,.3,1), height var(--selector-highlight-duration, 0ms) cubic-bezier(.16,1,.3,1), opacity 100ms ease; }
+.selector-option { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 36px; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--selector-muted); font: inherit; line-height: 20px; text-align: left; cursor: pointer; transition: color 100ms ease; }
+.selector-option:hover:not(:disabled) { color: var(--selector-fg); }
+.selector-option.is-active:not(:disabled) { color: var(--selector-fg); }
 .selector-option.is-selected { color: var(--selector-accent); }
 .selector-option:disabled { opacity: .4; cursor: default; }
 .selector-option-label { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -358,8 +438,6 @@ onBeforeUnmount(() => {
 .selector-list:is(:hover, :focus-within, [data-scrolling])::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--selector-muted) 28%, transparent); border-radius: 999px; }
 .selector-list::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
 @supports selector(::-webkit-scrollbar) { .selector-list, .selector-list:is(:hover, :focus-within, [data-scrolling]) { scrollbar-width: auto; scrollbar-color: auto; } }
-.selector-pop-enter-active, .selector-pop-leave-active { transition: opacity 160ms ease, transform 160ms cubic-bezier(.22,1,.36,1); }
-.selector-pop-enter-from, .selector-pop-leave-to { opacity: 0; transform: translateY(-3px); }
 @media (max-width: 767px), (pointer: coarse) { .selector-trigger, .selector--sm .selector-trigger, .selector--ghost .selector-trigger, .selector--ghost.selector--sm .selector-trigger, .selector-option, .selector-panel--ghost .selector-option { min-height: 44px; } }
-@media (prefers-reduced-motion: reduce) { .selector-trigger, .selector-chevron, .selector-option, .selector-pop-enter-active, .selector-pop-leave-active { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .selector-trigger, .selector-chevron, .selector-option, .selector-panel, .selector-highlight { transition: none; } }
 </style>

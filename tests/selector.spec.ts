@@ -133,7 +133,7 @@ test("selector hands over a single accessible panel, dismisses outside, and clos
   const first = page.getByRole("button", { name: "Selector 1", exact: true });
   const second = page.getByRole("button", { name: "Selector 2", exact: true });
   await first.click();
-  const oldPanel = await page.locator(".selector-panel").elementHandle();
+  const oldPanel = await page.locator(".selector-panel:visible").elementHandle();
   await second.click();
   await expect(first).toHaveAttribute("aria-expanded", "false");
   await expect(second).toHaveAttribute("aria-expanded", "true");
@@ -194,4 +194,99 @@ test("selector source copies the standalone component and inspecting it retains 
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(source);
   await page.getByRole("tab", { name: "Preview", exact: true }).click();
   await expect(trigger).toHaveText("Done");
+});
+
+test("filtering an upward selector keeps its side and interpolates the panel height", async ({ page }) => {
+  await page.setViewportSize({ width: 640, height: 600 });
+  await mount(page, { options, searchable: true }, 1, { position: "fixed", top: "420px", left: "16px", width: "280px" });
+  await page.getByRole("button", { name: "Selector 1", exact: true }).click();
+  const panel = page.locator(".selector-panel");
+  await panel.evaluate(element => Promise.allSettled(element.getAnimations().map(animation => animation.finished)));
+  const before = await panel.boundingBox();
+  await searchBox(page).fill("Done");
+  const samples = await panel.evaluate(async element => {
+    const samples: { height: number; gap: number }[] = [];
+    const start = performance.now();
+    while (performance.now() - start < 260) {
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      const box = element.getBoundingClientRect();
+      const trigger = document.querySelector(".selector-trigger")!.getBoundingClientRect();
+      samples.push({ height: box.height, gap: trigger.top - box.bottom });
+    }
+    return samples;
+  });
+  const after = await panel.boundingBox();
+  expect(after!.height).toBeLessThan(before!.height - 60);
+  expect(samples.some(sample => sample.height > after!.height + 2 && sample.height < before!.height - 2)).toBe(true);
+  expect(samples.every(sample => sample.gap >= 4 && sample.gap <= 8)).toBe(true);
+  await expect(searchBox(page)).toBeFocused();
+  await expect(page.getByRole("option")).toHaveCount(1);
+});
+
+test("rapid reopening reverses the same panel from its current pose without flashing back to transparent", async ({ page }) => {
+  await mount(page, { options });
+  await page.getByRole("combobox", { name: "Selector 1", exact: true }).click();
+  await page.locator(".selector-panel").evaluate(element => Promise.allSettled(element.getAnimations().map(animation => animation.finished)));
+  const reversal = await page.evaluate(async () => {
+    const trigger = document.querySelector<HTMLButtonElement>(".selector-trigger")!;
+    const panel = document.querySelector<HTMLElement>(".selector-panel")!;
+    trigger.click();
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    const leaving = panel.getAnimations().find(animation => animation.playState === "running")!;
+    leaving.pause();
+    leaving.currentTime = 60;
+    const before = Number(getComputedStyle(panel).opacity);
+    trigger.click();
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    const after = Number(getComputedStyle(panel).opacity);
+    const same = panel === document.querySelector(".selector-panel");
+    const interactive = !panel.inert && panel.getAttribute("aria-hidden") !== "true";
+    await Promise.allSettled(panel.getAnimations().map(animation => animation.finished));
+    return { before, after, same, interactive, settled: Number(getComputedStyle(panel).opacity) };
+  });
+  expect(reversal.before).toBeGreaterThan(.15);
+  expect(reversal.before).toBeLessThan(.95);
+  expect(reversal.after).toBeGreaterThanOrEqual(reversal.before - .02);
+  expect(reversal.same).toBe(true);
+  expect(reversal.interactive).toBe(true);
+  expect(reversal.settled).toBe(1);
+  await expect(page.getByRole("listbox")).toBeVisible();
+});
+
+test("one highlight glides between stable rows and reduced motion settles every layer immediately", async ({ page }) => {
+  await mount(page, { options, searchable: true });
+  const trigger = page.getByRole("button", { name: "Selector 1", exact: true });
+  await trigger.click();
+  const panel = page.locator(".selector-panel");
+  await panel.evaluate(element => Promise.allSettled(element.getAnimations({ subtree: true }).map(animation => animation.finished)));
+  const first = page.getByRole("option").first();
+  const last = page.getByRole("option").last();
+  await first.hover();
+  const highlight = page.locator(".selector-highlight");
+  await highlight.evaluate(element => Promise.allSettled(element.getAnimations().map(animation => animation.finished)));
+  const before = await page.getByRole("option").evaluateAll(elements => elements.map(element => element.getBoundingClientRect().toJSON()));
+  const from = await highlight.evaluate(element => new DOMMatrix(getComputedStyle(element).transform).m42);
+  const target = await last.evaluate(element => (element as HTMLElement).offsetTop);
+  await last.hover();
+  const movement = await highlight.evaluate(async element => {
+    const values: number[] = [];
+    const start = performance.now();
+    while (performance.now() - start < 230) {
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      values.push(new DOMMatrix(getComputedStyle(element).transform).m42);
+    }
+    return values;
+  });
+  expect(movement.some(value => value > from + 1 && value < target - 1)).toBe(true);
+  expect(movement.at(-1)).toBeCloseTo(target, 0);
+  expect(await page.getByRole("option").evaluateAll(elements => elements.map(element => element.getBoundingClientRect().toJSON()))).toEqual(before);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await first.hover();
+  await expect.poll(() => highlight.evaluate(element => new DOMMatrix(getComputedStyle(element).transform).m42)).toBe(0);
+  expect(await panel.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
+  await searchBox(page).press("Escape");
+  await expect(panel).not.toBeVisible();
+  await trigger.click();
+  await expect(panel).toHaveCSS("opacity", "1");
+  expect(await panel.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
 });
